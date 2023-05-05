@@ -1,0 +1,207 @@
+---
+title: "L2"
+output: html_document
+date: "2023-04-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Installing new package
+
+```{r}
+install.packages("gitcreds")
+library(gitcreds)
+```
+To check for cred use: gitcreds_set()
+
+
+
+Repository 
+https://github.com/BuJa96/Pat-L2.git
+
+# Training wheels
+
+
+creating dummy data
+```{r}
+library(tidyverse)
+wildschwein <- tibble(
+    TierID = c(rep("Hans", 5), rep("Klara", 5)),
+    DatetimeUTC = rep(as.POSIXct("2015-01-01 00:00:00", tz = "UTC") + 0:4 * 15 * 60, 2)
+)
+
+wildschwein
+```
+
+calculating time difference
+
+```{r}
+wildschwein$diff<- as.numeric(difftime(lead(wildschwein$DatetimeUTC), wildschwein$DatetimeUTC))
+```
+
+The problem is now, that the two boars are not being differentiated. the comuptation first nicer. 
+
+```{r}
+wildschwein$diff <- mutate(wildschwein, diff = as.numeric(difftime(lead(DatetimeUTC), DatetimeUTC)))
+
+wildschwein
+
+wildschwein <- wildschwein |> 
+  group_by(TierID) |> 
+  mutate(diff = as.numeric(difftime(lead(DatetimeUTC), DatetimeUTC)))
+
+```
+
+# Exercise
+
+loading data
+```{r}
+library("readr") 
+library("sf") 
+
+wildschwein_BE <- read_delim("wildschwein_BE_2056.csv", ",")
+
+wildschwein_BE <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
+```
+
+Now the data is loaded in the format I want. I want to figure out, how many boars there are. 
+
+```{r}
+wildschwein_BE$TierID |> 
+  unique()
+```
+
+This time I want to plot it
+
+```{r}
+ggplot(wildschwein_BE, aes(DatetimeUTC, TierName))+
+  geom_point()
+```
+
+Groupping the boars
+
+```{r}
+wildschwein_BE<-wildschwein_BE |> 
+  group_by(TierName) |> 
+  mutate(diff_s = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)))
+```
+
+plotting it with various amendments
+
+```{r}
+ggplot(wildschwein_BE, aes(diff_s/60))+
+  geom_histogram(bindwidth = 1)+
+  lims(x=c(0,5000/60))+
+  scale_y_log10()
+```
+
+going to play some more with the data
+
+```{r}
+wildschwein_BE |> 
+  filter(DatetimeUTC < "2014-08-24") |>
+  ggplot(aes(DatetimeUTC, diff_s, colour=TierName))+
+  geom_point()+
+  geom_line()
+```
+
+
+Adding some figures to make it easier to calculate the eulidean distance.
+Afterwards I want to apply it to the sheet to compute the distance the boars traveled.
+
+```{r}
+N1 <- 1204752
+N2 <- 1204863
+E1 <- 2570409
+E2 <- 2570402
+
+
+wildschwein_BE<- wildschwein_BE |> 
+  mutate(steplength_m = sqrt((E-lead(E))^2 + (N-lead(N))^2) )
+
+```
+
+to compute the speed
+
+```{r}
+wildschwein_BE<- wildschwein_BE |> 
+  mutate(speed_ms = steplength_m/ diff_s)
+
+hist(log10(wildschwein_BE$speed_ms),100)
+```
+
+## Task 4
+
+Uploading the new data
+```{r}
+caro<- read_csv("caro60.csv")
+```
+
+Now manually reduce the granularity of our sampling interval by selecting every 3rd, 6th and 9th position and save the output to caro_3, caro_6,caro_9 accordingly.
+
+```{r}
+
+positions_3 <- seq(from = 3, to = length(caro), by = 3)
+caro_3 <- caro[positions_3]
+
+positions_6 <- seq(from = 6, to = length(caro), by = 6)
+caro_6 <- caro[positions_6]
+
+positions_9 <- seq(from = 9, to = length(caro), by = 9)
+caro_9 <- caro[positions_9]
+
+```
+
+### Because the above task is not working, I'll continue with the Caro data. 
+
+Computing Steplengt, timelag and speed
+```{r}
+#steplength 
+caro<-caro|> 
+  mutate(steplength_m = sqrt((E-lead(E))^2 + (N-lead(N))^2))
+
+#time lag
+caro<-caro |> 
+  mutate(diff_s = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)))
+
+#speed
+caro<- caro |> 
+  mutate(speed_ms = steplength_m/ diff_s)
+```
+
+Unable to visualize granuality due to error above
+
+```{r}
+ggplot(caro)+
+  geom_point(aes(E, N), color= caro_3)
+```
+
+Task failed... 
+
+# Loading my posmo data
+
+```{r}
+posmo <- read_csv("posmo_2023-03-01T00_00_00+01_00-2023-04-28T23_59_59+02_00.csv")
+```
+
+Converting it
+
+```{r}
+posmo <- st_as_sf(posmo, coords = c("lon_x", "lat_y"), crs = 2056, remove = FALSE)
+```
+
+Time difference
+```{r}
+posmo$diff<- as.numeric(difftime(lead(posmo$datetime), posmo$datetime))
+```
+
+Visualize
+
+```{r}
+ggplot(posmo)+
+  geom_point(aes(transport_mode, diff))
+
+```
+
